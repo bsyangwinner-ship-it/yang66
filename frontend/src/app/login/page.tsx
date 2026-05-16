@@ -1,6 +1,7 @@
 "use client";
 
-import { Button, Card, Form, Input, Space, Typography, message } from "antd";
+import { Alert, Button, Card, Form, Input, Segmented, Space, Typography, message } from "antd";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { api, clearToken, saveToken } from "@/lib/api";
 
@@ -11,6 +12,7 @@ type LoginForm = {
 };
 
 export default function LoginPage() {
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [mode, setMode] = useState<"login" | "register">("login");
 
@@ -22,7 +24,8 @@ export default function LoginPage() {
           ? await api.login(values.email, values.password)
           : await api.register(values.name || "研究生用户", values.email, values.password);
       saveToken(result.access_token);
-      message.success(`已登录：${result.user.email}`);
+      message.success(mode === "login" ? `已登录：${result.user.email}` : "注册成功，已自动登录");
+      router.push("/profile");
     } catch (error) {
       message.error(error instanceof Error ? error.message : "登录失败");
     } finally {
@@ -34,25 +37,36 @@ export default function LoginPage() {
     <main className="page-stack">
       <div>
         <Typography.Title level={2} className="page-heading">
-          登录
+          {mode === "login" ? "登录" : "注册账号"}
         </Typography.Title>
         <Typography.Text type="secondary">
-          登录后即可把页面表单连接到本地 FastAPI 数据。也可以直接浏览演示数据。
+          {mode === "login"
+            ? "登录后即可把页面表单连接到本地 FastAPI 数据。也可以直接浏览演示数据。"
+            : "创建账号后会自动登录，并跳转到健康画像页面继续完善资料。"}
         </Typography.Text>
       </div>
 
       <Card className="panel-card" style={{ maxWidth: 560 }}>
         <Space direction="vertical" size="large" style={{ width: "100%" }}>
-          <Space>
-            <Button type={mode === "login" ? "primary" : "default"} onClick={() => setMode("login")}>
-              登录
-            </Button>
-            <Button
-              type={mode === "register" ? "primary" : "default"}
-              onClick={() => setMode("register")}
-            >
-              注册
-            </Button>
+          <Space direction="vertical" size="middle" style={{ width: "100%" }}>
+            <Segmented
+              block
+              value={mode}
+              options={[
+                { label: "登录", value: "login" },
+                { label: "注册", value: "register" }
+              ]}
+              onChange={(value) => setMode(value as "login" | "register")}
+            />
+            <Alert
+              showIcon
+              type={mode === "login" ? "info" : "success"}
+              message={
+                mode === "login"
+                  ? "当前是登录模式。输入已注册邮箱和密码后点击登录。"
+                  : "当前是注册模式。填写邮箱和密码后点击“注册并登录”。"
+              }
+            />
             <Button
               onClick={() => {
                 clearToken();
