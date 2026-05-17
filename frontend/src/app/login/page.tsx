@@ -15,8 +15,16 @@ export default function LoginPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [mode, setMode] = useState<"login" | "register">("login");
+  const [notice, setNotice] = useState<{
+    type: "info" | "success" | "warning" | "error";
+    message: string;
+  } | null>(null);
 
   async function handleSubmit(values: LoginForm) {
+    setNotice({
+      type: "info",
+      message: mode === "login" ? "正在登录，请稍候..." : "正在注册账号并自动登录，请稍候..."
+    });
     setLoading(true);
     try {
       const result =
@@ -24,13 +32,32 @@ export default function LoginPage() {
           ? await api.login(values.email, values.password)
           : await api.register(values.name || "研究生用户", values.email, values.password);
       saveToken(result.access_token);
+      setNotice({
+        type: "success",
+        message: mode === "login" ? `登录成功：${result.user.email}` : `注册成功：${result.user.email}`
+      });
       message.success(mode === "login" ? `已登录：${result.user.email}` : "注册成功，已自动登录");
       router.push("/profile");
     } catch (error) {
-      message.error(error instanceof Error ? error.message : "登录失败");
+      const errorMessage = error instanceof Error ? error.message : "登录失败";
+      setNotice({
+        type: "error",
+        message:
+          errorMessage === "Email already registered"
+            ? "该邮箱已经注册，请切换到登录模式，或换一个邮箱注册。"
+            : errorMessage
+      });
+      message.error(errorMessage);
     } finally {
       setLoading(false);
     }
+  }
+
+  function handleSubmitFailed() {
+    setNotice({
+      type: "warning",
+      message: "请先检查表单：邮箱必须有效，密码至少 8 位。"
+    });
   }
 
   return (
@@ -56,7 +83,10 @@ export default function LoginPage() {
                 { label: "登录", value: "login" },
                 { label: "注册", value: "register" }
               ]}
-              onChange={(value) => setMode(value as "login" | "register")}
+              onChange={(value) => {
+                setMode(value as "login" | "register");
+                setNotice(null);
+              }}
             />
             <Alert
               showIcon
@@ -77,7 +107,14 @@ export default function LoginPage() {
             </Button>
           </Space>
 
-          <Form layout="vertical" onFinish={handleSubmit} initialValues={{ password: "Password123!" }}>
+          {notice && <Alert showIcon type={notice.type} message={notice.message} />}
+
+          <Form
+            layout="vertical"
+            onFinish={handleSubmit}
+            onFinishFailed={handleSubmitFailed}
+            initialValues={{ password: "Password123!" }}
+          >
             {mode === "register" && (
               <Form.Item name="name" label="昵称">
                 <Input placeholder="例如：科研高压型用户" />
