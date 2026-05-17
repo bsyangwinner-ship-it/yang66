@@ -280,7 +280,14 @@ async function streamRequest(
     cache: "no-store"
   });
   if (!response.ok) {
-    throw new Error(`${response.status} ${response.statusText}`);
+    let detail = `${response.status} ${response.statusText}`;
+    try {
+      const payload = (await response.json()) as { detail?: string };
+      detail = payload.detail ?? detail;
+    } catch {
+      // Keep the HTTP status when the response is not JSON.
+    }
+    throw new Error(detail);
   }
   if (!response.body) {
     throw new Error("浏览器不支持流式响应读取");

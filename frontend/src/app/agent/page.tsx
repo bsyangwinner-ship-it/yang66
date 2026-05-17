@@ -18,8 +18,15 @@ import {
   message
 } from "antd";
 import dayjs from "dayjs";
-import { useState } from "react";
-import { api, type AgentRunResult, type AgentStreamEvent, type AgentToolCall } from "@/lib/api";
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import {
+  api,
+  getToken,
+  type AgentRunResult,
+  type AgentStreamEvent,
+  type AgentToolCall
+} from "@/lib/api";
 import { demoAgentResult, today } from "@/lib/demo";
 import { useAgentStore } from "@/stores/agentStore";
 
@@ -51,8 +58,20 @@ export default function AgentPage() {
   const [traceItems, setTraceItems] = useState<TraceItem[]>([]);
   const [toolCalls, setToolCalls] = useState<AgentToolCall[]>([]);
   const [streamedAnswer, setStreamedAnswer] = useState(demoAgentResult.assistant_message.content);
+  const [hasToken, setHasToken] = useState(false);
+  const [notice, setNotice] = useState<{
+    type: "info" | "success" | "warning" | "error";
+    message: string;
+  } | null>(null);
   const [loading, setLoading] = useState(false);
   const setLatestResult = useAgentStore((state) => state.setLatestResult);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setHasToken(Boolean(getToken()));
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   function handleStreamEvent(event: AgentStreamEvent) {
     if (event.type === "session") {
@@ -97,6 +116,17 @@ export default function AgentPage() {
   }
 
   async function send(values: ChatForm) {
+    if (!getToken()) {
+      setHasToken(false);
+      setNotice({
+        type: "warning",
+        message: "当前未登录。Agent 需要登录后读取你的画像、饮食记录和目标数据，请先注册或登录。"
+      });
+      return;
+    }
+
+    setHasToken(true);
+    setNotice({ type: "info", message: "Agent 已启动，正在读取数据并生成分析过程。" });
     setLoading(true);
     setTraceItems([]);
     setToolCalls([]);
@@ -104,6 +134,7 @@ export default function AgentPage() {
     const analysisDate = values.analysis_date.format("YYYY-MM-DD");
     try {
       await api.streamAgentChat(values.message, analysisDate, handleStreamEvent);
+      setNotice({ type: "success", message: "Agent 分析完成，结果已同步到餐单和运动干预页面。" });
       message.success("Agent 流式分析完成");
     } catch (error) {
       try {
@@ -111,9 +142,29 @@ export default function AgentPage() {
         setResult(data);
         setLatestResult(data);
         setStreamedAnswer(data.assistant_message.content);
+        setNotice({ type: "warning", message: "流式接口暂不可用，已切换为同步分析结果。" });
         message.warning("流式接口暂不可用，已切换为同步分析结果");
-      } catch {
-        message.error(error instanceof Error ? error.message : "Agent 调用失败，已保留演示结果");
+      } catch (fallbackError) {
+        const errorMessage =
+          fallbackError instanceof Error
+            ? fallbackError.message
+            : error instanceof Error
+              ? error.message
+              : "Agent 调用失败";
+        const isAuthError =
+          errorMessage.includes("Not authenticated") ||
+          errorMessage.includes("401") ||
+          errorMessage.includes("403");
+        setNotice({
+          type: "error",
+          message: isAuthError
+            ? "登录状态已失效或尚未登录。请先到登录页注册/登录，再回到 Agent 页面启动分析。"
+            : `${errorMessage}。已保留演示结果。`
+        });
+        if (isAuthError) {
+          setHasToken(false);
+        }
+        message.error(isAuthError ? "请先登录后再启动 Agent" : errorMessage);
         setResult(demoAgentResult);
         setLatestResult(demoAgentResult);
         setStreamedAnswer(demoAgentResult.assistant_message.content);
@@ -157,6 +208,22 @@ export default function AgentPage() {
           输入饮食问题或健康目标，系统会串联画像、分析、风险、RAG、餐单和运动干预工具。
         </Typography.Text>
       </div>
+
+      {!hasToken && (
+        <Alert
+          showIcon
+          type="warning"
+          message="需要先登录"
+          description={
+            <span>
+              Agent 对话需要登录后读取你的健康画像、饮食记录和目标数据。请先前往{" "}
+              <Link href="/login">登录/注册</Link>，成功后再回到本页点击“启动 Agent”。
+            </span>
+          }
+        />
+      )}
+
+      {notice && <Alert showIcon type={notice.type} message={notice.message} />}
 
       <div className="two-column-grid">
         <Card title="向 Agent 提问" className="panel-card">
