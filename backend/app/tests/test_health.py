@@ -12,6 +12,23 @@ def test_health_check() -> None:
     assert response.json()["status"] == "ok"
 
 
+def test_localhost_and_loopback_frontend_origins_are_allowed() -> None:
+    client = TestClient(create_app())
+
+    for origin in ("http://localhost:3000", "http://127.0.0.1:3000"):
+        response = client.options(
+            "/api/v1/auth/register",
+            headers={
+                "Origin": origin,
+                "Access-Control-Request-Method": "POST",
+                "Access-Control-Request-Headers": "content-type",
+            },
+        )
+
+        assert response.status_code == 200
+        assert response.headers["access-control-allow-origin"] == origin
+
+
 def test_agent_capabilities() -> None:
     client = TestClient(create_app())
 

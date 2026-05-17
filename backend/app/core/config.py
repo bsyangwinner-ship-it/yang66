@@ -12,7 +12,9 @@ class Settings(BaseSettings):
     environment: str = "development"
     api_v1_prefix: str = "/api/v1"
 
-    cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:3000"])
+    cors_origins: list[str] = Field(
+        default_factory=lambda: ["http://localhost:3000", "http://127.0.0.1:3000"]
+    )
 
     database_url: str = "postgresql+psycopg://postgres:postgres@localhost:5432/nutrition_agent"
     redis_url: str = "redis://localhost:6379/0"
